@@ -17,7 +17,8 @@
     "test": "vitest run",
     "byob": "tsx src/cli.ts",
     "demo:scripted": "tsx demo/scripted-demo.ts",
-    "demo:mcode": "tsx demo/mcode-demo.ts"
+    "demo:mcode": "tsx demo/mcode-demo.ts",
+    "build:miniapp": "node scripts/build-miniapp.mjs"
   },
   "dependencies": {
     "@minimax-ai/code-sdk": "^0.1.0",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"

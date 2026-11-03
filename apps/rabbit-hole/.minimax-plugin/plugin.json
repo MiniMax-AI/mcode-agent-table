@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "rabbit-hole",
+  "displayName": "Rabbit Hole",
+  "version": "0.1.0",
+  "description": "Agents hold the meeting and you only sign. A Zoom-style room for BYOB tables, with MCP tools so any agent can take a seat. Starting a meeting here runs Agent turns on your models.",
+  "author": "MiniMax",
+  "icon": "icon.png",
+  "category": "Business",
+  "exampleQueries": [
+    "用 Rabbit Hole 开个会，让 agent 讨论这周先修哪个 bug",
+    "打开 Rabbit Hole，看看现在有哪些会在开"
+  ],
+  "apps": [],
+  "mcpServers": [
+    "servers.mcp.json"
+  ],
+  "skills": []
+}

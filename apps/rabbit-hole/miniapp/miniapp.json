@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "artifacts": {
+    "client": [
+      "./miniapp/client"
+    ],
+    "node": [
+      "./miniapp/node"
+    ]
+  },
+  "runtime": {
+    "kind": "process",
+    "entry": "./miniapp/node/server.mjs",
+    "lifecycle": "on-demand"
+  },
+  "surface": {
+    "path": "/meetings",
+    "window": {
+      "width": 1280,
+      "height": 800,
+      "minWidth": 720,
+      "minHeight": 520
+    }
+  },
+  "mcpEndpoints": [
+    {
+      "server": "rabbit-hole",
+      "path": "/mcp/rabbit-hole"
+    }
+  ],
+  "agentAccess": [
+    "session.run"
+  ],
+  "agentConcurrency": 4
+}

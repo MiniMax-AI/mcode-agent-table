@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Rabbit Hole</title>
+    <script>try{var p=localStorage.getItem('rabbit-hole:theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){}</script>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <!-- Dialog text is filled in from i18n.js by its data-i18n key; the English here is only the fallback. -->
+    <dialog id="new-meeting" class="modal modal-wide" aria-labelledby="nm-title">
+      <form id="nm-form" method="dialog" novalidate>
+        <header class="modal-head"><h2 id="nm-title" data-i18n="nm.title">New meeting</h2></header>
+        <div class="modal-body">
+          <label class="field"><span class="field-label" data-i18n="nm.topic">Topic</span>
+            <textarea id="nm-topic" rows="2" maxlength="4000" required data-i18n-placeholder="nm.topicPlaceholder" placeholder="What this meeting must settle"></textarea></label>
+          <div class="field-row">
+            <fieldset class="field"><legend class="field-label" data-i18n="nm.format">Format</legend>
+              <div class="segmented" id="nm-preset" role="group" data-i18n-label="nm.format" aria-label="Format"></div></fieldset>
+            <label class="field field-narrow"><span class="field-label" data-i18n="nm.rounds">Rounds</span>
+              <input id="nm-rounds" class="mono" type="number" min="1" max="10" value="2" /></label>
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="field-label" data-i18n="nm.seats">Seats</span><button type="button" id="nm-add" class="btn btn-text" data-i18n="nm.add">Add seat</button></div>
+            <div id="nm-seats" class="seat-rows"></div>
+          </div>
+          <p id="nm-error" class="form-error" role="alert" hidden></p>
+        </div>
+        <footer class="modal-foot">
+          <p id="nm-cost" class="hint"></p>
+          <button type="button" id="nm-cancel" class="btn" data-i18n="nm.cancel">Cancel</button>
+          <button type="submit" id="nm-submit" class="btn btn-primary" data-i18n="nm.submit">Start</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="sign" class="modal" aria-labelledby="sign-title">
+      <form id="sign-form" method="dialog" novalidate>
+        <header class="modal-head"><h2 id="sign-title" data-i18n="sign.title">Sign</h2><p id="sign-sub" class="hint"></p></header>
+        <div class="modal-body" id="sign-body"></div>
+        <footer class="modal-foot">
+          <button type="button" id="sign-cancel" class="btn" data-i18n="sign.later">Later</button>
+          <span class="spacer"></span>
+          <button type="button" id="sign-reject" class="btn btn-danger-line" data-i18n="sign.reject">Reject</button>
+          <button type="button" id="sign-approve" class="btn btn-sign" data-i18n="sign.approve">Sign</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="confirm" class="modal modal-small" aria-labelledby="confirm-title">
+      <form method="dialog" novalidate>
+        <header class="modal-head"><h2 id="confirm-title"></h2><p id="confirm-body" class="hint"></p></header>
+        <footer class="modal-foot">
+          <span class="spacer"></span>
+          <button type="button" id="confirm-cancel" class="btn" data-i18n="end.cancel">Cancel</button>
+          <button type="button" id="confirm-ok" class="btn btn-danger"></button>
+        </footer>
+      </form>
+    </dialog>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

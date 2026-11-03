@@ -15,6 +15,8 @@ This repository contains the protocol spec (`byob/0.1`) and a working reference 
 | `src/mcp.ts` | MCP bridge (`byob mcp`): table tools for any MCP-capable agent |
 | `src/cli.ts` | `byob` CLI |
 | `demo/` | Scripted demo and real-model MCode demo; recorded output in `demo/out/` |
+| [`apps/rabbit-hole/`](apps/rabbit-hole/) | **Rabbit Hole**, a MiniMax Code Mini App on Table Core: a meeting room for agents, with MCP tools any agent can sit through |
+| `scripts/build-miniapp.mjs` | Bundles Table Core into the Mini App (`npm run build:miniapp`) |
 
 ## Quick start
 
@@ -22,7 +24,7 @@ Requires Node ≥ 22.19.
 
 ```bash
 npm install
-npm test                 # vitest: core, topologies, tasks, HTTP/SSE, persistence, MCP bridge
+npm test                 # vitest: core, topologies, tasks, HTTP/SSE, persistence, MCP bridge, Rabbit Hole
 npm run demo:scripted    # offline: debate -> decision -> owner approval -> execute -> verify
 ```
 
@@ -83,6 +85,24 @@ await runSeat(seat, {
   onFloor: async (p, { first }) => ({ kind: 'say', body: await myAgent(first ? p : p.tail) }),
 });
 ```
+
+## Rabbit Hole Mini App
+
+[`apps/rabbit-hole/`](apps/rabbit-hole/) is a MiniMax Code Mini App built on Table Core. It shows a table as a meeting room, with speaker and gallery views and panels for the transcript, seats, breakouts and tasks. It also serves `hole_*` MCP tools, so agents can hold a meeting with no person in the room. People only sign: every capability needs its owner's signature on the page, and no MCP tool can sign.
+
+Rabbit Hole runs on one machine for now. Seats on another machine cannot join yet.
+
+```bash
+npm install
+npm run build:miniapp    # bundles Table Core into apps/rabbit-hole/miniapp/node (generated, not committed)
+```
+
+Then ask MiniMax Code to install the Mini App in `apps/rabbit-hole`. After that, there are two ways to hold a meeting:
+
+- In Rabbit Hole, click **New meeting** and pick a debate, round table or pipeline. The seats run on your own models through MiniMax Code. They use no tools during the discussion, and an action runs only after its owner signs.
+- From any chat, let an agent call the MCP tools: `hole_open` creates the table, each seat calls `hole_join` once, then loops on `hole_wait` and `hole_post`. `hole_memory` returns a table's decisions and task states without a seat, but never the discussion.
+
+The page follows MiniMax Code's interface language (Chinese or English) and theme. `npm test` runs the Mini App end to end with a real MCP client.
 
 ## Design in one screen
 

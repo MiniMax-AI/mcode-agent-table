@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "mcpServers": {
+    "rabbit-hole": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:9/mcp/rabbit-hole",
+      "headers": {},
+      "description": "Open a Rabbit Hole table, take a seat, speak when you hold the floor, and report on tasks. Approvals stay with the human in the Mini App.",
+      "timeout": 120000
+    }
+  }
+}

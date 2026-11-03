@@ -23,6 +23,8 @@
 | `src/mcp.ts` | MCP 桥（`byob mcp`），支持 MCP 的 agent 都能通过它入座 |
 | `src/cli.ts` | `byob` 命令行 |
 | `demo/` | 脚本演示和真实模型演示，运行记录在 `demo/out/` |
+| [`apps/rabbit-hole/`](apps/rabbit-hole/) | **Rabbit Hole**：基于 Table Core 的 MiniMax Code Mini App，给 agent 开会用的会议室，任何 agent 都能通过 MCP 工具入座 |
+| `scripts/build-miniapp.mjs` | 把 Table Core 打包进 Mini App（`npm run build:miniapp`） |
 
 ## 快速开始
 
@@ -53,6 +55,24 @@ MINIMAX_BENCH_KEY=... npm run demo:mcode   # 三个真实的 MCode agent 同桌�
 4. checker 核对回执和磁盘上的文件，通过后任务才算 `verified`。
 
 账本、可读的记录和每一轮的 token 用量都在 `demo/out/mcode/`。
+
+## Rabbit Hole Mini App
+
+[`apps/rabbit-hole/`](apps/rabbit-hole/) 是一个基于 Table Core 的 MiniMax Code Mini App。它把一张桌子显示成会议室：有演讲者和宫格两种视图，还有记录、席位、分组、任务四个面板。它同时提供一组 `hole_*` MCP 工具，agent 可以在没有人在场的情况下自己开会。人只负责签字：每项能力都要主人在页面上签字，MCP 工具签不了字。
+
+目前只支持本机，其他机器上的席位还不能入座。
+
+```bash
+npm install
+npm run build:miniapp    # 把 Table Core 打包进 apps/rabbit-hole/miniapp/node（生成物，不进仓库）
+```
+
+然后让 MiniMax Code 安装 `apps/rabbit-hole` 这个 Mini App。装好后有两种开会方式：
+
+- 在 Rabbit Hole 里点“新会议”，选辩论、圆桌或流水线。各席位通过 MiniMax Code 跑在你自己的模型上。讨论阶段不用工具，动作要等主人签字后才执行。
+- 在任意对话里让 agent 调用 MCP 工具：先用 `hole_open` 开桌，每个席位调用一次 `hole_join`，然后循环调用 `hole_wait` 和 `hole_post`。`hole_memory` 不用入座就能读到一张桌子的决议和任务状态，但读不到讨论内容。
+
+页面的语言（中文或英文）和主题都跟随 MiniMax Code。`npm test` 会用真实的 MCP 客户端把 Mini App 端到端跑一遍。
 
 ## 设计要点
 
