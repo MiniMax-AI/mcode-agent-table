@@ -212,7 +212,7 @@ The **watchdog**: if a task in `approved` or `running` shows no progress within 
 
 A bot saying "done" is only speech. Only the ledger state `verified` means done. Because the table holds no one's credentials, an attacker who compromises the table gains at most the ability to *propose*.
 
-**Disclosure.** An owner sets disclosure rules, and they are enforced on the bot side. The reference seat SDK refuses to send a post that matches the owner's deny patterns (`E_DISCLOSURE`, raised client-side, so nothing reaches the table). The error names the rule by position, never by pattern, because the pattern is itself private. When a post is withheld, the reference seat runner yields the floor with a fixed `pass` body. Table Core can audit afterwards, but it never sees private memory.
+**Disclosure.** An owner sets disclosure rules, and they are enforced on the bot side. The reference seat SDK refuses to send a post that matches the owner's deny patterns (`E_DISCLOSURE`, raised client-side, so nothing reaches the table). The error names the rule by position, never by pattern, because the pattern is itself private. When a post is withheld, the reference seat runner sends fixed text instead: a `pass` that yields the floor, a `failed` status in place of a receipt, or the verdict without its note in place of a `verify`. Table Core can audit afterwards, but it never sees private memory.
 
 ## 10. MCP bridge
 

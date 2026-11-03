@@ -149,6 +149,42 @@ describe('HTTP + SSE transport', () => {
       expect(t.entries.find(e => e.seat === 'a' && e.kind === 'pass')?.body).toBe("(my say was withheld by my owner's disclosure rules)");
     });
   }
+
+  /** jenny's talk seat proposes on her own taskboard, so the task is auto-approved to her executor seat. */
+  async function ownTask(id: string, execDisclosure?: { deny: RegExp[] }) {
+    const { url, host } = await start();
+    await createTable(url, cfg(id, { kind: 'broadcast', order: ['p'], rounds: 1 }));
+    const exec = await SeatClient.join(url, id, owners.jenny, { seat: 'exec', card: boardCard, disclosure: execDisclosure });
+    const p = await SeatClient.join(url, id, owners.jenny, { seat: 'p', card: talkCard });
+    const pr = await p.propose('reorder my board', [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }]);
+    return { url, exec, table: host.get(id), task: `task-${pr.seq}` };
+  }
+  async function runUntil(seat: SeatClient, brain: Parameters<typeof runSeat>[1], done: () => boolean) {
+    const ac = new AbortController();
+    const run = runSeat(seat, brain, { signal: ac.signal, pollMs: 20 }).then(() => 'ok', (err: Error) => err.message);
+    for (let i = 0; i < 50 && !done(); i++) await new Promise(r => setTimeout(r, 20));
+    ac.abort();
+    return run;
+  }
+
+  it('runSeat reports a withheld receipt as a failed task instead of dying', async () => {
+    const { exec, table, task } = await ownTask('disc3', { deny: [/dentist/i] });
+    const brain = scriptedBrain([], { onTask: async () => ({ ok: true, body: 'reordered; Jenny is at the dentist on Thursday', artifact: {} }) });
+    expect(await runUntil(exec, brain, () => table.task(task).state === 'failed')).toBe('ok');
+    expect(table.task(task).state).toBe('failed');
+    expect(table.entries.some(e => /dentist/i.test(JSON.stringify(e)))).toBe(false);
+  });
+
+  it('runSeat keeps the verdict but withholds the note when a disclosure rule blocks a verify', async () => {
+    const { url, exec, table, task } = await ownTask('disc4');
+    await exec.status(task, 'running');
+    await exec.receipt(task, 'reordered', { taskboard: ['#461'] });
+    const checker = await SeatClient.join(url, 'disc4', owners.ops, { seat: 'checker', card: talkCard, disclosure: { deny: [/dentist/i] } });
+    const brain = checkerBrain(() => ({ result: 'pass', body: 'board ok; reminder: dentist at 3pm' }));
+    expect(await runUntil(checker, brain, () => table.task(task).state === 'verified')).toBe('ok');
+    expect(table.task(task).state).toBe('verified');
+    expect(table.entries.some(e => /dentist/i.test(JSON.stringify(e)))).toBe(false);
+  });
 });
 
 describe('TableHost persistence', () => {
