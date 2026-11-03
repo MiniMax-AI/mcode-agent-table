@@ -110,7 +110,7 @@ Table Core writes every entry. Seats only send a `post-request`. The core adds `
 | `say` | seat | yes (humans: no) | Speech. `to` addresses `*`, `@seat` or `role:x`. |
 | `pass` | seat | yes | A valid reply that means "nothing to add". It yields the floor. |
 | `raise_hand` | seat | no | Asks for the floor. Policy decides whether to grant it. |
-| `proposal` | seat | yes | Asks for external action. Requires `effects`. Does not end the turn. |
+| `proposal` | seat | yes | Asks for external action. Requires `effects`; without them it is refused with `E_SCHEMA`, and the seat should post `say` instead. Does not end the turn. |
 | `decision` | a seat in `decision_by` | yes | A resolution. It may carry `effects`, which open a task. |
 | `approval` / `rejection` | core, as `owner:<id>` | — | An owner's signed decision on a task. |
 | `status` | the task's executor | no | `state: running | failed` |
@@ -180,7 +180,7 @@ For `hub_spoke` and `delegation`, `rounds` counts the hub's turns. A hub `pass` 
 - **Termination** (`termination.any`, at least one condition):
   - `decision` — a decision closes the table;
   - `rounds_exhausted` — the policy has no turns left;
-  - `{budget_tokens: N}` — the sum of `budget.tokens_used`, or `ceil(len/4)` when that is not reported, for `say`, `proposal` and `decision` exceeds N;
+  - `{budget_tokens: N}` — the sum of `budget.tokens_used` for `say`, `proposal` and `decision` exceeds N. A post that does not report it counts one token per CJK character plus `ceil(n/4)` for its other `n` characters;
   - `{max_entries: N}`.
   A table also closes when its policy runs out of turns, even if `rounds_exhausted` is not listed.
 - After `table_closed`, floor-plane posts fail with `E_TABLE_CLOSED`. Work-plane entries (approvals, status, receipt, verify) are still accepted, so open tasks can finish.

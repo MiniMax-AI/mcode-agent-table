@@ -3,7 +3,7 @@
 // reproduces the table exactly (floor, seats, tasks, budget, status).
 import { EventEmitter } from 'node:events';
 import {
-  PROTOCOL, ByobError,
+  PROTOCOL, ByobError, estimateTokens,
   type Entry, type TableConfig, type Seat, type Task, type JoinRequest, type PostRequest,
   type OwnerDecision, type Projection, type Effect,
 } from './protocol.js';
@@ -89,7 +89,7 @@ export class Table extends EventEmitter {
         if (this.status === 'open') this.pstate = this.policy.raiseHand(this.pstate, e.seat);
         break;
       case 'say': case 'proposal': case 'decision':
-        this.tokens += e.budget?.tokens_used ?? Math.ceil((e.body ?? '').length / 4);
+        this.tokens += e.budget?.tokens_used ?? estimateTokens(e.body);
         if (e.kind === 'say') {
           const s = this.seats.get(e.seat);
           this.botDepth = s?.kind === 'human' ? 0 : this.botDepth + 1;
@@ -198,7 +198,7 @@ export class Table extends EventEmitter {
         return e;
       }
       case 'proposal': case 'decision': {
-        if (req.kind === 'proposal' && !req.effects?.length) throw new ByobError('E_SCHEMA', 'proposal requires effects');
+        if (req.kind === 'proposal' && !req.effects?.length) throw new ByobError('E_SCHEMA', 'proposal requires effects; to speak without asking for an action, post kind "say"');
         const plan = req.effects?.length ? this.planTask(seat, req.effects) : null;
         const e = this.write({ seat: seatId, kind: req.kind, to: req.to, reply_to: req.reply_to, body, truncated, effects: req.effects, refs: req.refs, budget: req.budget });
         if (plan) this.openTask(e, seat, plan);

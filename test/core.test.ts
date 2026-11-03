@@ -54,6 +54,17 @@ describe('floor control', () => {
     expect(t.closeReason).toMatch(/budget_exhausted/);
   });
 
+  it('estimates unreported tokens as one per CJK character and one per four other characters', () => {
+    const t = new Table(cfg('cjk', { kind: 'broadcast', order: ['a', 'b'], rounds: 10 }, { termination: { any: [{ budget_tokens: 1000 }, 'rounds_exhausted'] } }));
+    seat(t, 'a', 'tao'); seat(t, 'b', 'jenny');
+    t.post('a', { kind: 'say', body: '先做跨机入座。'.repeat(20) }); // 140 CJK characters, including the full stop
+    expect(t.tokens).toBe(140);
+    t.post('b', { kind: 'say', body: 'x'.repeat(40) });
+    expect(t.tokens).toBe(150);
+    t.post('a', { kind: 'say', body: '中文 mixed' }); // 2 CJK + ceil(6 / 4)
+    expect(t.tokens).toBe(154);
+  });
+
   it('raise_hand queues a seat for the next turn', () => {
     const t = new Table(cfg('rh', { kind: 'broadcast', order: ['a', 'b'], rounds: 3 }));
     seat(t, 'a', 'tao'); seat(t, 'b', 'jenny'); seat(t, 'c', 'ops');
@@ -211,6 +222,16 @@ describe('propose -> approve -> execute -> verify', () => {
     const t = setup();
     expect(codeOf(() => t.post('p', { kind: 'proposal', body: 'x', effects: [{ owner: 'jenny', resource: 'calendar', action: 'move' }] }))).toBe('E_NO_EXECUTOR');
     expect(codeOf(() => t.post('p', { kind: 'proposal', body: 'x', effects: [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }, { owner: 'tao', resource: 'taskboard', action: 'reorder' }] }))).toBe('E_MIXED_OWNERS');
+  });
+
+  it('refuses a proposal without effects and tells the seat to say it instead', () => {
+    const t = setup();
+    const holder = t.holder;
+    let err: (Error & { code?: string }) | undefined;
+    try { t.post('p', { kind: 'proposal', body: 'just an idea' }); } catch (e) { err = e as Error & { code?: string }; }
+    expect(err?.code).toBe('E_SCHEMA');
+    expect(err?.message).toMatch(/kind "say"/);
+    expect(t.holder).toBe(holder); // the floor stays, so the seat can post again as say
   });
 
   it('watchdog marks silent tasks stalled; the executor can resume', () => {

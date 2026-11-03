@@ -134,6 +134,14 @@ export const ERRORS = {
 } as const;
 export type ErrorCode = keyof typeof ERRORS;
 
+const CJK = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g;
+/** Token estimate for a post that reports no `budget.tokens_used` (SPEC §8): one per CJK character, one per four other characters. */
+export function estimateTokens(text: string | undefined): number {
+  const s = text ?? '';
+  const cjk = s.match(CJK)?.length ?? 0;
+  return cjk + Math.ceil((s.length - cjk) / 4);
+}
+
 export class ByobError extends Error {
   constructor(public code: ErrorCode, message: string) { super(`${code}: ${message}`); }
   get status() { return ERRORS[this.code]; }
