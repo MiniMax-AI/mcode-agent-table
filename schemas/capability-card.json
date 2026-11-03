@@ -18,7 +18,8 @@
         "properties": {
           "resource": { "type": "string", "minLength": 1 },
           "actions": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-          "requires_approval": { "type": "boolean", "description": "Owner wants to approve even own-owner proposals on this resource." }
+          "requires_approval": { "type": "boolean", "description": "Owner wants to approve even own-owner proposals on this resource." },
+          "auto_approve": { "type": "boolean", "description": "Owner accepts proposals from any seat for these actions without a signed approval. Ignored when requires_approval is also set." }
         }
       }
     }

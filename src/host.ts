@@ -12,19 +12,25 @@ export class TableHost {
 
   constructor(private store?: JsonlStore, private now: () => number = Date.now) {
     if (store) for (const id of store.tables()) {
-      const { cfg, entries, tokens } = store.load(id);
-      const t = new Table(cfg, store.ledger(id), entries, now);
-      this.wire(t);
-      this.tables.set(id, t);
-      this.tokens.set(id, tokens);
+      // One unreadable table must not stop the host: skip it and leave a trace.
+      try {
+        const { cfg, entries, tokens } = store.load(id);
+        const t = new Table(cfg, store.ledger(id), entries, now);
+        this.wire(t);
+        this.tables.set(id, t);
+        this.tokens.set(id, tokens);
+      } catch (err) {
+        console.warn(`byob: skipping table ${id}: ${(err as Error).message}`);
+      }
     }
   }
 
   create(cfg: TableConfig): { table: Table; admin_token: string } {
-    if (this.tables.has(cfg.id)) throw new ByobError('E_CONFIG', `table ${cfg.id} exists`);
+    if (this.tables.has(cfg.id) || (cfg.id !== undefined && this.store?.has(cfg.id))) throw new ByobError('E_CONFIG', `table ${cfg.id} exists`);
     if (cfg.parent) this.get(cfg.parent);
-    this.store?.saveConfig(cfg);
+    // Table validates the config before it writes anything, so a rejected config is never stored.
     const t = new Table(cfg, this.store?.ledger(cfg.id), undefined, this.now);
+    this.store?.saveConfig(cfg);
     this.wire(t);
     this.tables.set(cfg.id, t);
     this.tokens.set(cfg.id, {});

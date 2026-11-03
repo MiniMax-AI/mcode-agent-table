@@ -16,5 +16,7 @@ export class JsonlStore {
     return { cfg, entries, tokens: existsSync(tf) ? JSON.parse(readFileSync(tf, 'utf8')) : {} };
   }
   saveTokens(id: string, tokens: Record<string, string>) { writeFileSync(this.p(id, 'tokens.json'), JSON.stringify(tokens), { mode: 0o600 }); }
+  /** True when anything is stored under this id, including a table that failed to load. */
+  has(id: string) { return existsSync(this.p(id, 'config.json')) || existsSync(this.p(id, 'ledger.jsonl')); }
   tables(): string[] { return readdirSync(this.dir).filter(f => f.endsWith('.config.json')).map(f => decodeURIComponent(f.slice(0, -'.config.json'.length))); }
 }

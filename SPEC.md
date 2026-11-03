@@ -53,7 +53,7 @@ The JSON Schemas live in [`schemas/`](schemas/): `table-config`, `join-request`,
   "id": "agent-prio-w45",
   "topic": "Which issue goes first this week: #459 or #461?",
   "owners": { "tao": { "public_key": "<base64 SPKI Ed25519>" },
-              "jenny": { "public_key": "…", "auto_approve": [{ "resource": "taskboard", "action": "label" }] } },
+              "jenny": { "public_key": "…" } },
   "topology": { "kind": "debate", "pro": "bot-tao", "con": "bot-jenny", "judge": "judge", "rounds": 2 },
   "visibility": { "judge": ["bot-tao.say", "bot-jenny.say"] },
   "floor": { "max_chars": 1500, "max_bot_depth": 8, "decision_by": ["judge"] },
@@ -85,10 +85,13 @@ Because the signature covers the table id, a join signed for one table cannot be
 { "bot": "minimax-code (MCode) via @minimax-ai/code-sdk",
   "description": "optional",
   "proxy": false,
-  "capabilities": [ { "resource": "taskboard", "actions": ["reorder"], "requires_approval": false } ] }
+  "capabilities": [ { "resource": "taskboard", "actions": ["reorder"], "requires_approval": false },
+                    { "resource": "taskboard", "actions": ["label"], "auto_approve": true } ] }
 ```
 
 `proxy: true` marks a seat where a human or a script stands in for a product that has no open interface. Every seat sees this flag in the prefix.
+
+`requires_approval: true` asks the owner to approve even proposals from the owner's own seats on that resource. `auto_approve: true` lets the owner accept proposals from any seat for those actions without a signed approval; `requires_approval` on the same capability wins. Both live in the card because the owner signs the card. The table config is written by the table creator, who does not hold the owner's key, so it cannot grant auto-approval.
 
 ## 5. Ledger entries
 
@@ -190,7 +193,7 @@ A bot on a table acts only with its own owner's permissions. An action that touc
 2. Table Core picks the **executor**: a bot seat of that owner whose card declares every `resource:action` in the effects. If there is none, the post fails with `E_NO_EXECUTOR`.
 3. Core appends `system/task_opened`, with task id `task-<seq>`. The task is **auto-approved** when:
    - the proposer's owner is the affected owner and the executor's card does not mark the resource `requires_approval`; or
-   - the affected owner's `auto_approve` rules cover every effect.
+   - the executor's card, signed by the affected owner at join, marks every effect `auto_approve` (§4).
    Otherwise the state is `awaiting_approval`.
 4. The affected owner sends an `owner-decision`, signed over canonical `{table, owner, task, decision, reason, nonce}`. Only that owner's key is accepted (`E_NOT_OWNER`, `E_BAD_SIGNATURE`, `E_REPLAY`). Core records `approval` or `rejection`, then sets the task to `approved` (executor named) or `rejected`.
 5. The executor runs the action **in its own owner's execution plane**. It posts `status running`, then a `receipt` with the raw `artifact`.
@@ -209,15 +212,18 @@ The **watchdog**: if a task in `approved` or `running` shows no progress within 
 
 A bot saying "done" is only speech. Only the ledger state `verified` means done. Because the table holds no one's credentials, an attacker who compromises the table gains at most the ability to *propose*.
 
-**Disclosure.** An owner sets disclosure rules, and they are enforced on the bot side. The reference seat SDK refuses to send a post that matches the owner's deny patterns (`E_DISCLOSURE`, raised client-side, so nothing reaches the table). Table Core can audit afterwards, but it never sees private memory.
+**Disclosure.** An owner sets disclosure rules, and they are enforced on the bot side. The reference seat SDK refuses to send a post that matches the owner's deny patterns (`E_DISCLOSURE`, raised client-side, so nothing reaches the table). The error names the rule by position, never by pattern, because the pattern is itself private. When a post is withheld, the reference seat runner yields the floor with a fixed `pass` body. Table Core can audit afterwards, but it never sees private memory.
 
 ## 10. MCP bridge
 
-`byob mcp` (env `BYOB_URL`, `BYOB_TABLE`, `BYOB_OWNER_KEY_FILE`, optional `BYOB_SEAT` + `BYOB_SEAT_TOKEN`) exposes these tools:
+`byob mcp` (env `BYOB_URL`, `BYOB_TABLE`, `BYOB_OWNER_KEY_FILE`, optional `BYOB_CARD_FILE`, optional `BYOB_SEAT` + `BYOB_SEAT_TOKEN`) exposes these tools:
 
-`byob_join`, `byob_read_projection`, `byob_say`, `byob_pass`, `byob_raise_hand`, `byob_propose`, `byob_decide`, `byob_approve` (owner key, local), `byob_status`, `byob_receipt`, `byob_verify`, `byob_memory`.
+`byob_join`, `byob_read_projection`, `byob_say`, `byob_pass`, `byob_raise_hand`, `byob_propose`, `byob_decide`, `byob_approve` (owner confirms), `byob_status`, `byob_receipt`, `byob_verify`, `byob_memory`.
 
-The bridge runs on the owner's machine, so the owner key never leaves it.
+The bridge runs on the owner's machine, so the owner key never leaves it. The agent behind the bridge reads other seats' posts, so the bridge does not hand it the key's two signing powers:
+
+- `byob_join` signs the card from `BYOB_CARD_FILE` (default: talk only). The agent picks the seat id and role, never the capabilities.
+- `byob_approve` asks the owner through MCP elicitation and signs only after the owner confirms. If the client cannot elicit, the tool refuses and the owner runs `byob approve`.
 
 ## 11. Error codes
 

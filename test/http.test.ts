@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -12,7 +12,8 @@ import { scriptedBrain, checkerBrain } from '../src/adapters/scripted.js';
 import { createBridge } from '../src/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { cfg, owners, boardCard } from './helpers.js';
+import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { cfg, owners, boardCard, talkCard } from './helpers.js';
 
 const servers: Server[] = [];
 afterEach(() => { for (const s of servers.splice(0)) s.close(); });
@@ -24,6 +25,16 @@ async function start(dir = mkdtempSync(join(tmpdir(), 'byob-'))) {
   servers.push(server);
   return { host, dir, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
 }
+
+/** Connect an MCP client to a bridge. With `confirm`, the client supports elicitation and answers as the owner would. */
+async function connectMcp(bridge: ReturnType<typeof createBridge>, confirm?: boolean) {
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  const c = new Client({ name: 'test', version: '0' }, confirm === undefined ? {} : { capabilities: { elicitation: {} } });
+  if (confirm !== undefined) c.setRequestHandler(ElicitRequestSchema, async () => ({ action: 'accept', content: { confirm } }));
+  await Promise.all([bridge.connect(a), c.connect(b)]);
+  return c;
+}
+const toolText = (r: Awaited<ReturnType<Client['callTool']>>) => (r.content as { text: string }[])[0].text;
 
 describe('HTTP + SSE transport', () => {
   it('runs a full debate with scripted seats, a cross-owner proposal, approval, execution and verification', async () => {
@@ -116,8 +127,53 @@ describe('HTTP + SSE transport', () => {
     const { url, host } = await start();
     await createTable(url, cfg('disc', { kind: 'broadcast', order: ['a'] }));
     const a = await SeatClient.join(url, 'disc', owners.tao, { seat: 'a', card: { bot: 'x', capabilities: [] }, disclosure: { deny: [/medical/i] } });
-    await expect(a.say('I am out for a medical appointment')).rejects.toMatchObject({ code: 'E_DISCLOSURE' });
+    await expect(a.say('I am out for a medical appointment')).rejects.toMatchObject({ code: 'E_DISCLOSURE', message: expect.not.stringContaining('medical') });
     expect(host.get('disc').entries.some(e => e.body?.includes('medical'))).toBe(false);
+  });
+
+  // The rule /dentist/i matched its own pattern in the fallback pass and wedged the floor;
+  // /\bdentist\b/i did not, so the fallback pass carried the pattern into the ledger.
+  for (const rule of [/dentist/i, /\bdentist\b/i]) {
+    it(`runSeat yields the floor without leaking when a disclosure rule blocks a post (${rule})`, async () => {
+      const { url, host } = await start();
+      await createTable(url, cfg('disc2', { kind: 'broadcast', order: ['a', 'b'], rounds: 1 }));
+      const a = await SeatClient.join(url, 'disc2', owners.jenny, { seat: 'a', card: talkCard, disclosure: { deny: [rule] } });
+      await SeatClient.join(url, 'disc2', owners.tao, { seat: 'b', card: talkCard });
+      const ac = new AbortController();
+      const run = runSeat(a, scriptedBrain([{ kind: 'say', body: 'I am out Thursday for a dentist appointment' }]), { signal: ac.signal, pollMs: 20 });
+      const t = host.get('disc2');
+      for (let i = 0; i < 50 && t.holder === 'a'; i++) await new Promise(r => setTimeout(r, 20));
+      ac.abort(); await run;
+      expect(t.holder).toBe('b');
+      expect(t.entries.some(e => /dentist/i.test(JSON.stringify(e)))).toBe(false);
+      expect(t.entries.find(e => e.seat === 'a' && e.kind === 'pass')?.body).toBe("(my say was withheld by my owner's disclosure rules)");
+    });
+  }
+});
+
+describe('TableHost persistence', () => {
+  it('stores nothing for a rejected config, so a restart still loads every table', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'byob-'));
+    const host = new TableHost(new JsonlStore(dir));
+    host.create(cfg('good', { kind: 'broadcast', order: ['a'] }));
+    expect(() => host.create(cfg('bad', { kind: 'debate', pro: 'a' }))).toThrow(/E_CONFIG/); // debate without con
+    expect(() => host.create({} as never)).toThrow(/E_SCHEMA/);
+    expect(readdirSync(dir).filter(f => !f.startsWith('good.'))).toEqual([]);
+    expect(new TableHost(new JsonlStore(dir)).tables.has('good')).toBe(true);
+  });
+
+  it('skips a table it cannot load, leaves a trace, and keeps its id reserved', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'byob-'));
+    new TableHost(new JsonlStore(dir)).create(cfg('good', { kind: 'broadcast', order: ['a'] }));
+    writeFileSync(join(dir, 'broken.config.json'), '{ not json');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const host = new TableHost(new JsonlStore(dir));
+      expect(host.tables.has('good')).toBe(true);
+      expect(host.tables.has('broken')).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('broken'));
+      expect(() => host.create(cfg('broken', { kind: 'broadcast', order: ['a'] }))).toThrow(/E_CONFIG/);
+    } finally { warn.mockRestore(); }
   });
 });
 
@@ -126,28 +182,45 @@ describe('MCP bridge', () => {
     const { url, host } = await start();
     await createTable(url, cfg('mcp', { kind: 'broadcast', order: ['grok', 'mc'], rounds: 2 }));
     const mc = await SeatClient.join(url, 'mcp', owners.jenny, { seat: 'mc', card: boardCard });
-    const tao = createBridge({ url, table: 'mcp', owner: owners.tao });
+    const tao = createBridge({ url, table: 'mcp', owner: owners.tao, card: { bot: 'grok-bot', capabilities: [] } });
     const jennyBridge = createBridge({ url, table: 'mcp', owner: owners.jenny, seat: mc });
-    const connect = async (s: ReturnType<typeof createBridge>) => {
-      const [a, b] = InMemoryTransport.createLinkedPair();
-      const c = new Client({ name: 'test', version: '0' });
-      await Promise.all([s.connect(a), c.connect(b)]);
-      return c;
-    };
-    const c = await connect(tao);
+    const c = await connectMcp(tao, true);
     const tools = (await c.listTools()).tools.map(t => t.name);
     expect(tools).toEqual(expect.arrayContaining(['byob_join', 'byob_read_projection', 'byob_say', 'byob_pass', 'byob_propose', 'byob_approve']));
     const callText = async (cl: Client, name: string, args: Record<string, unknown>) => {
       const r = await cl.callTool({ name, arguments: args });
       return { text: (r.content as { text: string }[])[0].text, isError: r.isError };
     };
-    expect((await callText(c, 'byob_join', { seat: 'grok', bot: 'grok-bot', capabilities: [] })).text).toContain('seated');
+    expect((await callText(c, 'byob_join', { seat: 'grok' })).text).toContain('seated');
     expect((await callText(c, 'byob_read_projection', {})).text).toContain('(YOU)');
     const pr = JSON.parse((await callText(c, 'byob_propose', { body: 'reorder', effects: [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }] })).text);
     await callText(c, 'byob_say', { body: 'filed a proposal' });
     expect((await callText(c, 'byob_approve', { task: `task-${pr.seq}`, decision: 'approve' })).isError).toBe(true); // tao is not the affected owner
-    const jc = await connect(jennyBridge);
+    const jc = await connectMcp(jennyBridge, true); // jenny confirms in her client
     await callText(jc, 'byob_approve', { task: `task-${pr.seq}`, decision: 'approve' });
     expect(host.get('mcp').task(`task-${pr.seq}`)).toMatchObject({ state: 'approved', executor: 'mc' });
+  });
+
+  it('takes the card from the owner and signs an approval only after the owner confirms', async () => {
+    const { url, host } = await start();
+    await createTable(url, cfg('mcp2', { kind: 'broadcast', order: ['agent', 'tao'], rounds: 2 }));
+    const taoSeat = await SeatClient.join(url, 'mcp2', owners.tao, { seat: 'tao', card: talkCard });
+    const exec = await SeatClient.join(url, 'mcp2', owners.jenny, { seat: 'jenny-exec', card: boardCard });
+    // jenny issued no card for her agent, so it sits talk-only whatever it asks for
+    const agent = await connectMcp(createBridge({ url, table: 'mcp2', owner: owners.jenny }));
+    await agent.callTool({ name: 'byob_join', arguments: { seat: 'agent', capabilities: [{ resource: 'taskboard', actions: ['reorder'] }] } });
+    expect(host.get('mcp2').seats.get('agent')!.card.capabilities).toEqual([]);
+
+    await agent.callTool({ name: 'byob_pass', arguments: {} });
+    const pr = await taoSeat.propose('reorder jenny\'s board', [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }]);
+    const id = `task-${pr.seq}`;
+    // the client cannot ask the owner: refused, with the CLI fallback
+    const noAsk = await agent.callTool({ name: 'byob_approve', arguments: { task: id, decision: 'approve' } });
+    expect(noAsk.isError).toBe(true);
+    expect(toolText(noAsk)).toContain('byob approve');
+    // the owner is asked and declines: refused
+    const declining = await connectMcp(createBridge({ url, table: 'mcp2', owner: owners.jenny, seat: exec }), false);
+    expect((await declining.callTool({ name: 'byob_approve', arguments: { task: id, decision: 'approve' } })).isError).toBe(true);
+    expect(host.get('mcp2').task(id).state).toBe('awaiting_approval');
   });
 });

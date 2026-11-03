@@ -51,10 +51,10 @@ export class SeatClient {
 
   /** Disclosure rules run on the bot's side, before anything reaches the table. */
   private guard(req: PostRequest) {
-    for (const re of this.disclosure.deny ?? []) {
-      const text = [req.body ?? '', JSON.stringify(req.effects ?? []), JSON.stringify(req.artifact ?? '')].join('\n');
-      if (re.test(text)) throw new ByobError('E_DISCLOSURE', `blocked by owner disclosure rule ${re}`);
-    }
+    const text = [req.body ?? '', JSON.stringify(req.effects ?? []), JSON.stringify(req.artifact ?? '')].join('\n');
+    const i = (this.disclosure.deny ?? []).findIndex(re => re.test(text));
+    // Name the rule by position only: its pattern is itself the private detail it protects.
+    if (i >= 0) throw new ByobError('E_DISCLOSURE', `blocked by owner disclosure rule #${i + 1}`);
   }
 
   async post(req: PostRequest): Promise<Entry> { this.guard(req); return call(this.baseUrl, this.path('entries'), 'POST', this.token, req); }
@@ -167,7 +167,12 @@ export async function runSeat(c: SeatClient, brain: Brain, opts: { signal?: Abor
           log(`${c.seat} ${a.kind}`);
         } catch (err) {
           log(`${c.seat} action rejected: ${(err as Error).message}; passing`);
-          await c.pass(`(my ${a.kind} was rejected: ${(err as Error).message.slice(0, 200)})`).catch(() => {});
+          // A withheld post must not reach the table, not even through the error text.
+          const body = (err as ByobError).code === 'E_DISCLOSURE'
+            ? `(my ${a.kind} was withheld by my owner's disclosure rules)`
+            : `(my ${a.kind} was rejected: ${(err as Error).message.slice(0, 200)})`;
+          // If even that pass is refused, pass without a body so the seat never keeps the floor.
+          await c.pass(body).catch(() => c.pass()).catch(e => log(`${c.seat} could not yield the floor: ${(e as Error).message}`));
         }
         continue;
       }

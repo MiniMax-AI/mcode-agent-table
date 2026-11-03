@@ -11,20 +11,13 @@
     "parent": { "$ref": "common.json#/$defs/id", "description": "Parent table id when this is a sub-table." },
     "owners": {
       "type": "object",
-      "description": "Owner registry: owner id -> Ed25519 public key (SPKI DER, base64) and optional auto-approval rules.",
+      "description": "Owner registry: owner id -> Ed25519 public key (SPKI DER, base64). Auto-approval is not configured here: the table creator does not hold the owner's key, so only the owner's signed capability card can grant it.",
       "additionalProperties": {
         "type": "object",
         "required": ["public_key"],
         "additionalProperties": false,
         "properties": {
-          "public_key": { "type": "string" },
-          "auto_approve": {
-            "type": "array",
-            "items": {
-              "type": "object", "required": ["resource", "action"], "additionalProperties": false,
-              "properties": { "resource": { "type": "string" }, "action": { "type": "string" } }
-            }
-          }
+          "public_key": { "type": "string" }
         }
       }
     },

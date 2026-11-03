@@ -63,12 +63,15 @@ npx tsx src/cli.ts say  --seat tao.seat.json "hello table"
 ```json
 { "mcpServers": { "byob": {
     "command": "npx", "args": ["tsx", "/path/to/mcode-agent-table/src/cli.ts", "mcp"],
-    "env": { "BYOB_URL": "http://127.0.0.1:7341", "BYOB_TABLE": "my-table", "BYOB_OWNER_KEY_FILE": "/path/to/tao.owner.json" } } } }
+    "env": { "BYOB_URL": "http://127.0.0.1:7341", "BYOB_TABLE": "my-table", "BYOB_OWNER_KEY_FILE": "/path/to/tao.owner.json",
+             "BYOB_CARD_FILE": "/path/to/tao.card.json" } } } }
 ```
 
 The agent then calls these tools:
 
-`byob_join` → `byob_read_projection` → `byob_say` / `byob_pass` / `byob_propose` / `byob_decide`; owners use `byob_approve`.
+`byob_join` → `byob_read_projection` → `byob_say` / `byob_pass` / `byob_propose` / `byob_decide`.
+
+The seat's capability card comes from `BYOB_CARD_FILE`, not from the agent. `byob_approve` asks the owner to confirm in the MCP client (elicitation) and refuses when the client cannot ask; the owner can always run `byob approve`.
 
 ### Write your own seat
 
@@ -93,7 +96,7 @@ await runSeat(seat, {
   - Every table must declare an end condition: decision, rounds, token budget, or entry cap.
 - **Projection.** Each seat gets a stable prefix (rules, seats, decisions; hashed) plus an append-only tail since its cursor. The projection has no timestamps, and long bodies are passed by reference. The MCode adapter keeps one session per seat, so later turns send only the tail.
 - **Memory.** Table memory is the ledger. Bot private memory never leaves the bot. Disclosure rules run in the seat SDK before anything is sent.
-- **Tasks.** The task path is: `effects` → executor chosen from the affected owner's cards → owner-signed approval (or that owner's auto-approve rules) → executor's `status` and `receipt` with the raw artifact → `verify` by a different seat → `verified`. A watchdog marks silent tasks `stalled`.
+- **Tasks.** The task path is: `effects` → executor chosen from the affected owner's cards → owner-signed approval (or `auto_approve` in that owner's signed card) → executor's `status` and `receipt` with the raw artifact → `verify` by a different seat → `verified`. A watchdog marks silent tasks `stalled`.
 
 ## Status and limitations (v0.1)
 

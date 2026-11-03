@@ -176,7 +176,7 @@ describe('propose -> approve -> execute -> verify', () => {
     expect(t.task(id).state).toBe('verified');
   });
 
-  it('own-owner actions and owner auto_approve rules skip approval; rejections stop the task', () => {
+  it('own-owner actions and auto_approve in the owner-signed card skip approval; rejections stop the task', () => {
     const t = setup();
     const own = t.post('p', { kind: 'proposal', body: 'my board', effects: [{ owner: 'tao', resource: 'taskboard', action: 'reorder' }] });
     expect(t.task(`task-${own.seq}`)).toMatchObject({ state: 'approved', executor: 'p' });
@@ -184,9 +184,27 @@ describe('propose -> approve -> execute -> verify', () => {
     t.ownerDecision(owners.jenny.signDecision('tk', `task-${x.seq}`, 'reject', 'not this week') as never);
     expect(t.task(`task-${x.seq}`).state).toBe('rejected');
 
-    const t2 = setup({ owners: Object.fromEntries(Object.values(owners).map(o => [o.id, { public_key: o.publicKey, auto_approve: o.id === 'jenny' ? [{ resource: 'taskboard', action: 'reorder' }] : [] }])) });
+    // jenny's own signed card accepts reorders from any seat
+    const t2 = new Table(cfg('tk2', { kind: 'broadcast', order: ['p', 'q'], rounds: 3 }));
+    seat(t2, 'p', 'tao', boardCard);
+    seat(t2, 'q', 'jenny', { bot: 'test-bot', capabilities: [{ resource: 'taskboard', actions: ['reorder'], auto_approve: true }] });
     const a = t2.post('p', { kind: 'proposal', body: 'auto', effects: [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }] });
     expect(t2.task(`task-${a.seq}`).state).toBe('approved');
+
+    // requires_approval on the same capability wins over auto_approve
+    const t3 = new Table(cfg('tk3', { kind: 'broadcast', order: ['p', 'q'], rounds: 3 }));
+    seat(t3, 'p', 'tao', boardCard);
+    seat(t3, 'q', 'jenny', { bot: 'test-bot', capabilities: [{ resource: 'taskboard', actions: ['reorder'], auto_approve: true, requires_approval: true }] });
+    const b = t3.post('p', { kind: 'proposal', body: 'flagged', effects: [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }] });
+    expect(t3.task(`task-${b.seq}`).state).toBe('awaiting_approval');
+  });
+
+  it('the table config cannot grant auto-approval on an owner\'s behalf', () => {
+    // The table creator writes the config but does not hold jenny's key.
+    const forged = Object.fromEntries(Object.values(owners).map(o => [o.id, {
+      public_key: o.publicKey, ...(o.id === 'jenny' ? { auto_approve: [{ resource: 'taskboard', action: 'reorder' }] } : {}),
+    }]));
+    expect(codeOf(() => new Table(cfg('forged', { kind: 'broadcast', order: ['p', 'q'] }, { owners: forged as never })))).toBe('E_SCHEMA');
   });
 
   it('rejects effects with no capable executor or mixed owners', () => {

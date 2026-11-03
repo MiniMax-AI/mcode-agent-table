@@ -7,7 +7,11 @@ import { z } from 'zod';
 import { Owner, SeatClient, renderPrefix, renderTail } from './client.js';
 import type { CapabilityCard } from './protocol.js';
 
-export interface BridgeOptions { url: string; table: string; owner?: Owner; seat?: SeatClient }
+export interface BridgeOptions {
+  url: string; table: string; owner?: Owner; seat?: SeatClient;
+  /** Capability card issued by the owner (BYOB_CARD_FILE). The agent cannot choose or widen it. Default: talk only. */
+  card?: CapabilityCard;
+}
 
 const text = (v: unknown) => ({ content: [{ type: 'text' as const, text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }] });
 const effect = z.object({ owner: z.string(), resource: z.string(), action: z.string(), args: z.record(z.string(), z.unknown()).optional() });
@@ -22,12 +26,12 @@ export function createBridge(o: BridgeOptions): McpServer {
   };
 
   server.registerTool('byob_join', {
-    description: 'Join the BYOB table as a seat signed by the configured owner key. Call once.',
-    inputSchema: { seat: z.string(), bot: z.string(), role: z.string().optional(), description: z.string().optional(),
-      capabilities: z.array(z.object({ resource: z.string(), actions: z.array(z.string()), requires_approval: z.boolean().optional() })).default([]) },
+    description: 'Join the BYOB table as a seat signed by the configured owner key, with the capability card your owner issued. Call once.',
+    inputSchema: { seat: z.string(), role: z.string().optional() },
   }, wrap(async a => {
     if (!o.owner) throw new Error('no owner key configured (BYOB_OWNER_KEY_FILE)');
-    const card: CapabilityCard = { bot: a.bot, description: a.description, capabilities: a.capabilities };
+    // The owner key signs the card, so the card must come from the owner's side, never from tool arguments.
+    const card: CapabilityCard = o.card ?? { bot: 'mcp-agent', capabilities: [] };
     seat = await SeatClient.join(o.url, o.table, o.owner, { seat: a.seat, role: a.role, card });
     return `seated as @${a.seat} on ${o.table}`;
   }));
@@ -55,9 +59,24 @@ export function createBridge(o: BridgeOptions): McpServer {
   server.registerTool('byob_decide', { description: 'Post a decision (only seats in decision_by).', inputSchema: { body: z.string(), effects: z.array(effect).optional() } },
     wrap(async a => need().decide(a.body, a.effects)));
   server.registerTool('byob_approve', {
-    description: 'As the OWNER (using the local owner key), approve or reject a task that affects your resources.',
+    description: 'Ask your OWNER to approve or reject a task that affects their resources. The owner confirms in the client; nothing is signed without that confirmation.',
     inputSchema: { task: z.string(), decision: z.enum(['approve', 'reject']), reason: z.string().optional() },
-  }, wrap(async a => { if (!o.owner) throw new Error('no owner key configured'); return o.owner.decide(o.url, o.table, a.task, a.decision, a.reason); }));
+  }, wrap(async a => {
+    const owner = o.owner;
+    if (!owner) throw new Error('no owner key configured');
+    // The agent reads other seats' posts, so its own judgment is not the owner's approval.
+    // Sign only after the owner confirms through MCP elicitation.
+    const cli = `byob approve ${o.table} ${a.task} --owner <owner key file>${a.decision === 'reject' ? ' --reject' : ''}`;
+    if (!server.server.getClientCapabilities()?.elicitation) throw new Error(`this client cannot ask the owner to confirm; the owner can run: ${cli}`);
+    const task = seat ? await seat.task(a.task).catch(() => null) : null;
+    const r = await server.server.elicitInput({
+      message: [`${a.decision === 'approve' ? 'Approve' : 'Reject'} ${a.task} on table ${o.table} as owner ${owner.id}?`,
+        task ? `Effects: ${JSON.stringify(task.effects)}` : '', a.reason ? `Reason: ${a.reason}` : ''].filter(Boolean).join('\n'),
+      requestedSchema: { type: 'object', properties: { confirm: { type: 'boolean', title: `Sign this ${a.decision} with my owner key` } }, required: ['confirm'] },
+    });
+    if (r.action !== 'accept' || r.content?.confirm !== true) throw new Error(`the owner did not confirm; ${a.task} was left unchanged`);
+    return owner.decide(o.url, o.table, a.task, a.decision, a.reason);
+  }));
   server.registerTool('byob_status', { description: 'Executor progress on a task.', inputSchema: { task: z.string(), state: z.enum(['running', 'failed']), body: z.string().optional() } },
     wrap(async a => need().status(a.task, a.state, a.body)));
   server.registerTool('byob_receipt', { description: 'Executor result for a task (then another seat must verify).', inputSchema: { task: z.string(), body: z.string(), artifact: z.unknown().optional() } },
@@ -68,7 +87,8 @@ export function createBridge(o: BridgeOptions): McpServer {
   return server;
 }
 
-/** stdio entry: BYOB_URL, BYOB_TABLE, BYOB_OWNER_KEY_FILE ({"id","publicKey","privateKey"}). Optional BYOB_SEAT + BYOB_SEAT_TOKEN to reuse a seat. */
+/** stdio entry: BYOB_URL, BYOB_TABLE, BYOB_OWNER_KEY_FILE ({"id","publicKey","privateKey"}), optional BYOB_CARD_FILE (capability card).
+ *  Optional BYOB_SEAT + BYOB_SEAT_TOKEN to reuse a seat. */
 export async function main() {
   const url = process.env.BYOB_URL ?? 'http://127.0.0.1:7341';
   const table = process.env.BYOB_TABLE;
@@ -78,6 +98,7 @@ export async function main() {
     const k = JSON.parse(readFileSync(process.env.BYOB_OWNER_KEY_FILE, 'utf8'));
     owner = new Owner(k.id, { publicKey: k.publicKey, privateKey: k.privateKey });
   }
+  const card = process.env.BYOB_CARD_FILE ? (JSON.parse(readFileSync(process.env.BYOB_CARD_FILE, 'utf8')) as CapabilityCard) : undefined;
   const seat = process.env.BYOB_SEAT && process.env.BYOB_SEAT_TOKEN ? new SeatClient(url, table, process.env.BYOB_SEAT, process.env.BYOB_SEAT_TOKEN) : undefined;
-  await createBridge({ url, table, owner, seat }).connect(new StdioServerTransport());
+  await createBridge({ url, table, owner, seat, card }).connect(new StdioServerTransport());
 }

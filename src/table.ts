@@ -236,10 +236,12 @@ export class Table extends EventEmitter {
     const executor = [...this.seats.values()].find(s => s.owner === owner && s.kind === 'bot' && can(s));
     if (!executor) throw new ByobError('E_NO_EXECUTOR', `no seat of owner ${owner} declares ${effects.map(f => f.resource + ':' + f.action).join(', ')}`);
     const flagged = effects.some(f => executor.card.capabilities.some(c => c.resource === f.resource && c.requires_approval));
-    const rules = this.cfg.owners[owner].auto_approve ?? [];
-    const autoRule = effects.every(f => rules.some(r => r.resource === f.resource && r.action === f.action));
+    // Cross-owner auto-approval comes only from the executor's card, which the affected owner signed at join.
+    // The table config is written by the table creator, who does not hold that owner's key.
+    const autoRule = effects.every(f => executor.card.capabilities.some(c =>
+      c.resource === f.resource && c.actions.includes(f.action) && c.auto_approve === true && !c.requires_approval));
     const auto = autoRule || (proposer.owner === owner && !flagged);
-    return { owner, executor: executor.seat, auto, why: autoRule ? 'owner auto_approve rule' : auto ? 'own-owner action' : null };
+    return { owner, executor: executor.seat, auto, why: autoRule ? 'auto_approve in the owner-signed card' : auto ? 'own-owner action' : null };
   }
 
   private openTask(e: Entry, proposer: Seat, plan: { owner: string; executor: string; auto: boolean; why: string | null }) {

@@ -7,7 +7,7 @@ export type Kind =
 
 export interface Effect { owner: string; resource: string; action: string; args?: Record<string, unknown> }
 
-export interface Capability { resource: string; actions: string[]; requires_approval?: boolean }
+export interface Capability { resource: string; actions: string[]; requires_approval?: boolean; auto_approve?: boolean }
 export interface CapabilityCard { bot: string; description?: string; proxy?: boolean; capabilities: Capability[] }
 
 export interface Entry {
@@ -78,7 +78,7 @@ export interface TableConfig {
   id: string;
   topic: string;
   parent?: string;
-  owners: Record<string, { public_key: string; auto_approve?: { resource: string; action: string }[] }>;
+  owners: Record<string, { public_key: string }>;
   topology: Topology;
   visibility?: Record<string, string[]>;
   floor?: { max_chars?: number; max_bot_depth?: number; decision_by?: string[] };
