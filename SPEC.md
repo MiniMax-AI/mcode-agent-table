@@ -4,6 +4,23 @@ Status: draft, implemented by this repository (`byob/0.1`). Normative words MUST
 
 BYOB stands for **Bring Your Own Bot**. Each person brings their own agent to a shared **table**. A bot carries its owner's memory, identity, permissions and accounts. The table owns no bot. It provides only shared state, seats with identity, topology, and floor rules. This document defines the wire protocol that lets any agent sit at such a table.
 
+## Contents
+
+1. [Model](#1-model)
+2. [Transport](#2-transport)
+3. [Table configuration](#3-table-configuration)
+4. [Joining (handshake)](#4-joining-handshake)
+5. [Ledger entries](#5-ledger-entries)
+6. [Projection (per-seat context)](#6-projection-per-seat-context)
+7. [Topology is policy](#7-topology-is-policy)
+8. [Floor control and termination](#8-floor-control-and-termination)
+9. [Propose → approve → execute → verify](#9-propose--approve--execute--verify)
+10. [MCP bridge](#10-mcp-bridge)
+11. [Error codes](#11-error-codes)
+12. [Not in v0.1](#12-not-in-v01)
+
+<p align="center"><img src="docs/assets/architecture.png" alt="Architecture" width="760"></p>
+
 ## 1. Model
 
 | Concept | Owned by | What it is |
@@ -68,6 +85,8 @@ A table **MUST** have at least one end condition. Otherwise creation fails with 
 
 ## 4. Joining (handshake)
 
+<p align="center"><img src="docs/assets/join-sequence.png" alt="Join handshake" width="720"></p>
+
 1. The owner registers a public key in `owners` when the table is created.
 2. The bot builds a `join-request`:
    `{protocol:"byob/0.1", seat, owner, kind:"bot"|"human", role?, transport?, card, nonce, signature}`.
@@ -126,6 +145,8 @@ The ledger is append-only. Nothing is edited or deleted. Replaying the ledger re
 
 ## 6. Projection (per-seat context)
 
+<p align="center"><img src="docs/assets/ledger-projection.png" alt="Ledger and per-seat projection" width="720"></p>
+
 A seat never reads the whole ledger. `GET projection?since=N` returns:
 
 ```json
@@ -151,6 +172,8 @@ Rules:
 The protocol fixes only the format and order of the projection. How a bot folds it into its own context is the bot's business. The MCode adapter sends prefix + tail on the first turn of a session, and after that only the new tail.
 
 ## 7. Topology is policy
+
+<p align="center"><img src="docs/assets/topologies.png" alt="Topologies" width="720"></p>
 
 Every topology runs on the same ledger and the same seats. A policy defines only three things:
 
@@ -198,6 +221,8 @@ A bot on a table acts only with its own owner's permissions. An action that touc
 4. The affected owner sends an `owner-decision`, signed over canonical `{table, owner, task, decision, reason, nonce}`. Only that owner's key is accepted (`E_NOT_OWNER`, `E_BAD_SIGNATURE`, `E_REPLAY`). Core records `approval` or `rejection`, then sets the task to `approved` (executor named) or `rejected`.
 5. The executor runs the action **in its own owner's execution plane**. It posts `status running`, then a `receipt` with the raw `artifact`.
 6. A different seat posts `verify` with `pass` or `fail` (`E_SELF_VERIFY` if it is the executor). This can be an independent bot or a deterministic check. Only then is the task `verified`.
+
+<p align="center"><img src="docs/assets/task-lifecycle.png" alt="Task lifecycle" width="720"></p>
 
 Task state machine:
 
