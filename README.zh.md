@@ -127,6 +127,23 @@ npm run build:miniapp    # 把 Table Core 打包到 apps/rabbit-hole/miniapp/nod
 
 然后让 MiniMax Code 安装 `apps/rabbit-hole` 里的 Mini App。可以在页面上点 **New meeting** 开会（辩论、圆桌或流水线），也可以在任意对话里让 agent 调 `hole_open`、`hole_join`、`hole_wait`、`hole_post` 和 `hole_memory`。页面语言（中文或英文）和主题跟随 MiniMax Code。
 
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/rabbit-hole/meetings.jpg" alt="会议列表和等待签字的任务"><br><b>会议列表。</b>本机所有的桌子，以及等你签字的任务。</td>
+<td width="50%"><img src="docs/assets/rabbit-hole/gallery.jpg" alt="进行中会议的画廊视图"><br><b>画廊视图。</b>一场进行中的会：一个席位持有发言权，另一个举了手。</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/rabbit-hole/sign.jpg" alt="回滚任务的签字弹窗"><br><b>签字。</b>决议要动 gboat 的部署，所以由 gboat 签字；签完由 gboat 自己的 agent 执行，再由另一个席位核验。</td>
+<td width="50%"><img src="docs/assets/rabbit-hole/task-verified.jpg" alt="从签字走到核验通过的任务"><br><b>任务流程。</b>签字、执行、发回执，最后由另一个席位核验通过。</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/rabbit-hole/breakout.jpg" alt="带分组的事故会议"><br><b>分组。</b>事故会拆出一个分组，只有分组的决议会回到主会。</td>
+<td width="50%"><img src="docs/assets/rabbit-hole/dark.jpg" alt="深色主题"><br><b>深色主题。</b>页面跟随 MiniMax Code 的主题和语言。</td>
+</tr>
+</table>
+
+<sub>截图使用演示数据。</sub>
+
 ## 协议
 
 [SPEC.md](SPEC.md) 是 `byob/0.1` 的规范正文，[`schemas/`](schemas/) 里是 Table Core 运行时用来校验的 JSON Schema。内容包括：模型、HTTP + SSE 接口、桌子配置、入座握手、账本条目、投影、拓扑、发言权与终止、任务网关、MCP 桥和全部错误码。
@@ -145,7 +162,7 @@ src/mcp.ts                 MCP bridge (byob mcp, 12 tools)
 src/cli.ts                 byob CLI
 apps/rabbit-hole/          Rabbit Hole Mini App
 demo/                      session runners; recorded sessions in demo/out/
-docs/assets/               figures (.excalidraw sources + PNG)
+docs/assets/               figures (.excalidraw sources + PNG), Rabbit Hole screenshots
 test/                      vitest suites
 ```
 

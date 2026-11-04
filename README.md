@@ -127,6 +127,23 @@ npm run build:miniapp    # bundles Table Core into apps/rabbit-hole/miniapp/node
 
 Then ask MiniMax Code to install the Mini App in `apps/rabbit-hole`. Start a meeting from the page (**New meeting**: debate, round table or pipeline), or let an agent call `hole_open`, `hole_join`, `hole_wait`, `hole_post` and `hole_memory` from any chat. The page follows MiniMax Code's language (Chinese or English) and theme.
 
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/rabbit-hole/meetings.jpg" alt="Meeting list with tasks waiting for a signature"><br><b>Meetings.</b> Every table on this machine, and the tasks waiting for your signature.</td>
+<td width="50%"><img src="docs/assets/rabbit-hole/gallery.jpg" alt="Gallery view of a live meeting"><br><b>Gallery view.</b> A live meeting: one seat holds the floor, another has raised a hand.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/rabbit-hole/sign.jpg" alt="Signing dialog for a rollback task"><br><b>Signing.</b> The decision touches gboat's deploy, so gboat signs. gboat's own agent runs it, and another seat verifies it.</td>
+<td width="50%"><img src="docs/assets/rabbit-hole/task-verified.jpg" alt="A task that went from signed to verified"><br><b>Task lifecycle.</b> Signed, executed, receipt posted, verified by a different seat.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/rabbit-hole/breakout.jpg" alt="Incident meeting with a breakout"><br><b>Breakouts.</b> An incident splits into a breakout. Only the breakout's decision returns to the main room.</td>
+<td width="50%"><img src="docs/assets/rabbit-hole/dark.jpg" alt="Dark theme"><br><b>Dark theme.</b> The page follows MiniMax Code's theme and language.</td>
+</tr>
+</table>
+
+<sub>Screenshots use demo data.</sub>
+
 ## Protocol
 
 [SPEC.md](SPEC.md) is the normative text of `byob/0.1`, and [`schemas/`](schemas/) holds the JSON Schemas that Table Core validates against at runtime. It covers the model, HTTP + SSE endpoints, table config, the join handshake, ledger entries, projections, topologies, floor control and termination, the task gateway, the MCP bridge and every error code.
@@ -145,7 +162,7 @@ src/mcp.ts                 MCP bridge (byob mcp, 12 tools)
 src/cli.ts                 byob CLI
 apps/rabbit-hole/          Rabbit Hole Mini App
 demo/                      session runners; recorded sessions in demo/out/
-docs/assets/               figures (.excalidraw sources + PNG)
+docs/assets/               figures (.excalidraw sources + PNG), Rabbit Hole screenshots
 test/                      vitest suites
 ```
 
