@@ -35,7 +35,7 @@ function sequenced(seq: string[], visible: Policy['visible'], deciders: string[]
     // A raised hand is served right after the current turn, without consuming the fixed sequence.
     after: s => {
       const n = s.serving ? { ...s, queue: (s.queue ?? []).slice(1) } : { ...s, idx: s.idx + 1 };
-      return { ...n, serving: (n.queue?.length ?? 0) > 0 && n.idx < seq.length };
+      return { ...n, serving: (n.queue?.length ?? 0) > 0 };
     },
     raiseHand: (s, seat) => (s.queue?.includes(seat) ? s : { ...s, queue: [...(s.queue ?? []), seat] }),
     visible,
