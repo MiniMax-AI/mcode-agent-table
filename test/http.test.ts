@@ -131,6 +131,16 @@ describe('HTTP + SSE transport', () => {
     expect(host.get('disc').entries.some(e => e.body?.includes('medical'))).toBe(false);
   });
 
+  it('global disclosure rules block every matching post', async () => {
+    const { url, host } = await start();
+    await createTable(url, cfg('disc-global', { kind: 'broadcast', order: ['a'] }));
+    const a = await SeatClient.join(url, 'disc-global', owners.tao, { seat: 'a', card: { bot: 'x', capabilities: [] }, disclosure: { deny: [/medical/gi] } });
+    for (let i = 0; i < 2; i++) {
+      await expect(a.say('I am out for a medical appointment')).rejects.toMatchObject({ code: 'E_DISCLOSURE' });
+    }
+    expect(host.get('disc-global').entries.some(e => e.body?.includes('medical'))).toBe(false);
+  });
+
   // The rule /dentist/i matched its own pattern in the fallback pass and wedged the floor;
   // /\bdentist\b/i did not, so the fallback pass carried the pattern into the ledger.
   for (const rule of [/dentist/i, /\bdentist\b/i]) {
