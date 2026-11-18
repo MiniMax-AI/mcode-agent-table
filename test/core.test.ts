@@ -75,6 +75,19 @@ describe('floor control', () => {
     expect(t.holder).toBe('b'); // the queue does not consume the fixed sequence
   });
 
+  it('raise_hand is served after the final scheduled turn', () => {
+    const t = new Table(cfg('rh-final', { kind: 'broadcast', order: ['a', 'b'], rounds: 1 }));
+    seat(t, 'a', 'tao'); seat(t, 'b', 'jenny'); seat(t, 'c', 'ops');
+    t.post('a', { kind: 'say', body: 'first' });
+    t.post('c', { kind: 'raise_hand', body: 'one more point' });
+    t.post('b', { kind: 'say', body: 'last scheduled turn' });
+    expect(t.status).toBe('open');
+    expect(t.holder).toBe('c');
+    t.post('c', { kind: 'say', body: 'queued turn' });
+    expect(t.status).toBe('closed');
+    expect(t.closeReason).toBe('rounds_exhausted');
+  });
+
   it('bot-to-bot depth limit hands the floor to a human, whose message resets the counter', () => {
     const t = new Table(cfg('d', { kind: 'broadcast', order: ['a', 'b'], rounds: 50 }, { floor: { max_bot_depth: 3 } }));
     seat(t, 'a', 'tao'); seat(t, 'b', 'jenny'); seat(t, 'h', 'tao', undefined, 'human');
