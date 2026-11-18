@@ -52,7 +52,7 @@ export class SeatClient {
   /** Disclosure rules run on the bot's side, before anything reaches the table. */
   private guard(req: PostRequest) {
     const text = [req.body ?? '', JSON.stringify(req.effects ?? []), JSON.stringify(req.artifact ?? '')].join('\n');
-    const i = (this.disclosure.deny ?? []).findIndex(re => re.test(text));
+    const i = (this.disclosure.deny ?? []).findIndex(re => new RegExp(re.source, re.flags).test(text));
     // Name the rule by position only: its pattern is itself the private detail it protects.
     if (i >= 0) throw new ByobError('E_DISCLOSURE', `blocked by owner disclosure rule #${i + 1}`);
   }
