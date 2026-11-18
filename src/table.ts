@@ -17,12 +17,14 @@ export interface Store {
 
 const GOVERNANCE = new Set(['system', 'proposal', 'decision', 'approval', 'rejection', 'status', 'receipt', 'verify']);
 
+interface TrackedTask extends Task { last_progress_ms: number }
+
 export class Table extends EventEmitter {
   readonly cfg: TableConfig;
   readonly policy: Policy;
   entries: Entry[] = [];
   seats = new Map<string, Seat>();
-  tasks = new Map<string, Task>();
+  tasks = new Map<string, TrackedTask>();
   holder: string | null = null;
   grantSeq: number | null = null;
   pstate: PolicyState;
@@ -74,7 +76,7 @@ export class Table extends EventEmitter {
         if (e.event === 'task_opened' || e.event === 'task_state') {
           const id = e.task!;
           const prev = this.tasks.get(id);
-          const t: Task = prev ?? {
+          const t: TrackedTask = prev ?? {
             id, opened_seq: e.seq, proposer: d.proposer as string, owner: d.owner as string,
             effects: d.effects as Effect[], state: 'awaiting_approval', executor: null, last_progress_ms: 0,
           };
@@ -351,7 +353,7 @@ export class Table extends EventEmitter {
       protocol: PROTOCOL, table: this.cfg.id, seat: viewer, prefix, prefix_hash: sha256(canonical(prefix)), tail, cursor,
       floor: { holder: this.holder, you_have_floor: this.holder === viewer, grant_seq: this.grantSeq, max_chars: this.maxChars },
       status: this.status,
-      my_tasks: [...this.tasks.values()].filter(t => t.executor === viewer || t.proposer === viewer),
+      my_tasks: [...this.tasks.values()].filter(t => t.executor === viewer || t.proposer === viewer).map(({ last_progress_ms: _last_progress_ms, ...t }) => t),
     };
   }
 

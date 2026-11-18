@@ -266,4 +266,15 @@ describe('projection', () => {
     for (const e of t.entries) check('ledger-entry', e);
     check('projection', p2);
   });
+
+  it('omits internal watchdog timestamps from projected tasks', () => {
+    const t = new Table(cfg('pj-task', { kind: 'broadcast', order: ['p', 'q'], rounds: 3 }, { watchdog: { heartbeat_ms: 1000 } }), undefined, undefined, () => 1_000_000);
+    seat(t, 'p', 'tao', boardCard); seat(t, 'q', 'jenny', boardCard);
+    const pr = t.post('p', { kind: 'proposal', body: 'move #461 up', effects: [{ owner: 'jenny', resource: 'taskboard', action: 'reorder' }] });
+    const p = t.projection('p', 0);
+    expect(p.my_tasks).toHaveLength(1);
+    expect(p.my_tasks[0]).toMatchObject({ id: `task-${pr.seq}`, state: 'awaiting_approval' });
+    expect(p.my_tasks[0]).not.toHaveProperty('last_progress_ms');
+    check('projection', p);
+  });
 });
