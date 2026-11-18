@@ -94,7 +94,7 @@ export interface Seat {
 export type TaskState = 'awaiting_approval' | 'approved' | 'running' | 'reported' | 'verified' | 'rejected' | 'failed' | 'stalled';
 export interface Task {
   id: string; opened_seq: number; proposer: string; owner: string; effects: Effect[];
-  state: TaskState; executor: string | null; receipt_seq?: number; last_progress_ms: number;
+  state: TaskState; executor: string | null; receipt_seq?: number;
 }
 
 export interface Projection {
